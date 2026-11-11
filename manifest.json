@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "RateMyRegistration",
-    "version": "0.1.0",
-    "description": "Shows RateMyProfessor ratings inline during course registration",
+    "name": "Rate My Registration UGA",
+    "version": "0.1.1",
+    "description": "Shows UGA Rate My Professor ratings inline during course registration",
     "permissions": ["storage"],
     "host_permissions": [
         "https://athena-prod.uga.edu/*",

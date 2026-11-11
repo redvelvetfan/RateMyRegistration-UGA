@@ -1,6 +1,6 @@
 # RateMyRegistration
 
-A Chrome extension that shows RateMyProfessors ratings inline on UGA's Athena course registration portal — no more tab-switching during registration.
+A Chrome extension that shows RateMyProfessors ratings inline on UGA's Athena course registration portal, no more tab-switching during registration.
 
 ## Features
 
@@ -13,15 +13,6 @@ A Chrome extension that shows RateMyProfessors ratings inline on UGA's Athena co
 ## Feedback Form:
 [RMR Feedback Form](https://forms.gle/pVJyYN8BbK6LX1nX7)
 
-## Installation
-
-This extension is not yet on the Chrome Web Store. To install manually:
-
-1. Clone or download this repository
-2. Go to `chrome://extensions` in Chrome
-3. Enable **Developer mode** (toggle in the top right)
-4. Click **Load unpacked** and select the project folder
-5. Log in to [Athena](https://athena-prod.uga.edu) and run a class search — ratings will appear automatically
 
 ## How It Works
 

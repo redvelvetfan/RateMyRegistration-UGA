@@ -39,21 +39,26 @@ function tokenMatch(a, b) {
     return a === b || a.startsWith(b) || b.startsWith(a);
 }
 
-function isGoodMatch(queryName, firstName, lastName) {
+// Returns a match score in [0.6, 1], or -1 if the names don't match
+function matchScore(queryName, firstName, lastName) {
     const aTokens = normTokens(queryName);
     const rTokens = normTokens(`${firstName} ${lastName}`);
-    if (aTokens.length < 1 || rTokens.length < 1) return false;
+    if (aTokens.length < 1 || rTokens.length < 1) return -1;
+
+    // Athena's last name must appear EXACTLY in the RMP name. Prefix matching
+    // is only for first names (Brad ↔ Bradley); allowing it here would match
+    // Lee ↔ Leeds.
+    const aLast = aTokens[aTokens.length - 1];
+    if (!rTokens.includes(aLast)) return -1;
 
     // Fraction of RMP tokens that match any Athena token
     const matches = rTokens.filter(rt => aTokens.some(at => tokenMatch(rt, at)));
     const score = matches.length / rTokens.length;
+    if (score < 0.6) return -1;
 
-    // Athena's last token must appear somewhere in the RMP name
-    // (guards against purely first-name-based false positives)
-    const aLast = aTokens[aTokens.length - 1];
-    const lastNamePresent = rTokens.some(rt => tokenMatch(rt, aLast));
-
-    return score >= 0.6 && lastNamePresent;
+    // Small bonus per exact token so "Li Wang" beats "Lisa Wang" for Li Wang
+    const exact = rTokens.filter(rt => aTokens.includes(rt)).length;
+    return score + exact * 0.01;
 }
 
 function rmpUrl(encodedId) {
@@ -62,36 +67,46 @@ function rmpUrl(encodedId) {
     return `https://www.ratemyprofessors.com/professor/${numeric}`;
 }
 
+// Returns the best-matching professor, or null if none matched.
+// Throws on network/API errors so failures aren't cached as "no rating".
 async function queryRMP(searchText, name) {
-    try {
-        const res = await fetch(RMP_GQL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Basic dGVzdDp0ZXN0",
-            },
-            body: JSON.stringify({
-                query: QUERY,
-                variables: { text: searchText, schoolID: UGA_SCHOOL_ID },
-            }),
-        });
-        const json = await res.json();
-        const edges = json?.data?.newSearch?.teachers?.edges ?? [];
-        for (const { node } of edges) {
-            if (isGoodMatch(name, node.firstName, node.lastName)) {
-                return {
-                    avgRating: node.avgRating,
-                    avgDifficulty: node.avgDifficulty,
-                    numRatings: node.numRatings,
-                    wouldTakeAgainPercent: node.wouldTakeAgainPercent,
-                    url: rmpUrl(node.id),
-                };
-            }
+    const res = await fetch(RMP_GQL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Basic dGVzdDp0ZXN0",
+        },
+        body: JSON.stringify({
+            query: QUERY,
+            variables: { text: searchText, schoolID: UGA_SCHOOL_ID },
+        }),
+    });
+    if (!res.ok) throw new Error(`RMP request failed: ${res.status}`);
+    const json = await res.json();
+    if (!json?.data) throw new Error("RMP returned no data");
+
+    // Pick the highest-scoring match; break ties by number of ratings
+    let best = null;
+    let bestScore = -1;
+    const edges = json.data.newSearch?.teachers?.edges ?? [];
+    for (const { node } of edges) {
+        const score = matchScore(name, node.firstName, node.lastName);
+        if (score < 0) continue;
+        if (score > bestScore ||
+            (score === bestScore && node.numRatings > best.numRatings)) {
+            best = node;
+            bestScore = score;
         }
-        return null;
-    } catch (_) {
-        return null;
     }
+    if (!best) return null;
+
+    return {
+        avgRating: best.avgRating,
+        avgDifficulty: best.avgDifficulty,
+        numRatings: best.numRatings,
+        wouldTakeAgainPercent: best.wouldTakeAgainPercent,
+        url: rmpUrl(best.id),
+    };
 }
 
 async function fetchProf(name) {
@@ -112,11 +127,15 @@ async function lookupProf(name) {
     // Deduplicate concurrent requests for the same name
     if (pending.has(name)) return pending.get(name);
 
-    const promise = fetchProf(name).then(result => {
-        cache.set(name, result);
-        pending.delete(name);
-        return result;
-    });
+    const promise = fetchProf(name)
+        .then(result => {
+            // Only cache real answers (including "not found"), never errors,
+            // so a transient failure can be retried on the next lookup
+            cache.set(name, result);
+            return result;
+        })
+        .catch(() => null)
+        .finally(() => pending.delete(name));
     pending.set(name, promise);
     return promise;
 }

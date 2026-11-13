@@ -17,7 +17,8 @@ const STYLE_NONE    = `${BASE_STYLE};background:#eee;color:#aaa`;
 
 function updateBadge(badge, data) {
     if (!badge.isConnected) return;
-    if (!data || data.avgRating == null) {
+    // RMP reports avgRating 0 for professors with no reviews
+    if (!data || data.avgRating == null || !data.numRatings) {
         badge.style.cssText = STYLE_NONE;
         badge.textContent = "N/A";
         return;
@@ -29,7 +30,8 @@ function updateBadge(badge, data) {
         badge.target = "_blank";
         badge.rel = "noopener noreferrer";
     }
-    const again = data.wouldTakeAgainPercent != null
+    // RMP uses -1 when no one has answered the "would take again" question
+    const again = data.wouldTakeAgainPercent != null && data.wouldTakeAgainPercent >= 0
         ? `${Math.round(data.wouldTakeAgainPercent)}%` : "?";
     const diff = data.avgDifficulty != null
         ? data.avgDifficulty.toFixed(1) : "?";
@@ -37,14 +39,17 @@ function updateBadge(badge, data) {
 }
 
 function processRow(tr) {
-    if (tr.dataset.rmrDone) return;
-    const link = tr.querySelector("a.email");
-    if (!link) return;
+    // A row can list several instructors (co-taught sections)
+    tr.querySelectorAll("a.email").forEach(processLink);
+}
+
+function processLink(link) {
+    if (link.dataset.rmrDone) return;
 
     const name = link.textContent.trim();
     if (!name) return;
 
-    tr.dataset.rmrDone = "1";
+    link.dataset.rmrDone = "1";
 
     const td = link.parentElement;
     td.style.overflow = "visible";

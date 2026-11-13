@@ -1,11 +1,11 @@
 {
     "manifest_version": 3,
     "name": "Rate My Registration UGA",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Shows UGA Rate My Professor ratings inline during course registration",
     "permissions": ["storage"],
     "host_permissions": [
-        "https://athena-prod.uga.edu/*",
+        "https://athena-prod.uga.edu/StudentRegistrationSsb/*",
         "https://www.ratemyprofessors.com/*"
     ],
     "background": {
@@ -13,7 +13,7 @@
     },
     "content_scripts": [
         {
-            "matches": ["https://athena-prod.uga.edu/*"],
+            "matches": ["https://athena-prod.uga.edu/StudentRegistrationSsb/*"],
             "js": ["content-scripts/inject.js"],
             "run_at": "document_idle"
         }
